@@ -16,6 +16,7 @@
 
 #include <image/Ktx1Bundle.h>
 
+#include <utils/Log.h>
 #include <utils/Panic.h>
 #include <utils/string.h>
 
@@ -103,10 +104,18 @@ Ktx1Bundle::~Ktx1Bundle() = default;
 
 Ktx1Bundle::Ktx1Bundle(uint32_t numMipLevels, uint32_t arrayLength, bool isCubemap) :
         mBlobs(new KtxBlobList), mMetadata(new KtxMetadata) {
+    uint64_t const totalBlobs = (uint64_t)numMipLevels * arrayLength * (isCubemap ? 6 : 1);
+    if (totalBlobs > (uint64_t)std::numeric_limits<uint32_t>::max()) {
+        utils::slog.w << "KTX dimensions overflow" << utils::io::endl;
+        mNumMipLevels = 0;
+        mArrayLength = 0;
+        mNumCubeFaces = 0;
+        return;
+    }
     mNumMipLevels = numMipLevels;
     mArrayLength = arrayLength;
     mNumCubeFaces = isCubemap ? 6 : 1;
-    mBlobs->sizes.resize(numMipLevels * arrayLength * mNumCubeFaces);
+    mBlobs->sizes.resize((uint32_t)totalBlobs);
 }
 
 Ktx1Bundle::Ktx1Bundle(uint8_t const* bytes, uint32_t nbytes) :
