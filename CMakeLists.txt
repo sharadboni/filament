@@ -13,13 +13,17 @@ cmake_minimum_required(VERSION 3.22.1)
 # On iOS, the deployment target is set inside third_party/clang/ios.cmake
 if (APPLE AND NOT IOS)
     # This must be set before project() is called
-    set(CMAKE_OSX_DEPLOYMENT_TARGET 10.15 CACHE STRING "")
+    set(CMAKE_OSX_DEPLOYMENT_TARGET 11.0 CACHE STRING "")
 endif()
 
 # ==================================================================================================
 # Project declaration
 # ==================================================================================================
-project(TNT)
+set(EXTRA_LANGS)
+if (APPLE)
+    set(EXTRA_LANGS OBJC OBJCXX)
+endif()
+project(TNT C CXX ${EXTRA_LANGS})
 
 # ==================================================================================================
 # Options
@@ -339,6 +343,8 @@ endif()
 # ==================================================================================================
 # General compiler flags
 # ==================================================================================================
+set(CMAKE_OBJCXX_STANDARD 20)
+set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
 set(CXX_STANDARD "-std=c++20")
 if (WIN32)
     set(CXX_STANDARD "/std:c++20")
@@ -356,6 +362,7 @@ else()
     if (APPLE)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-nullability-extension")
     endif()
+    set(CMAKE_OBJCXX_FLAGS "${CMAKE_CXX_FLAGS}")
 endif()
 
 if (FILAMENT_USE_EXTERNAL_GLES3)

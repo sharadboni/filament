@@ -37,7 +37,7 @@ template("cmake_configure_file") {
   assert(defined(invoker.values), "must set 'values'")
 
   action(target_name) {
-    script = "${invoker.dawn_dxc_gn_dir}/dxc/build/cmake_configure_file.py"
+    script = "${invoker.dawn_dxc_gn_dir}/build/cmake_configure_file.py"
     sources = [ invoker.input ]
     outputs = [ invoker.output ]
     args = [
