@@ -91,6 +91,10 @@
 #include <unordered_map>
 #include <utility>
 
+#ifdef __EXCEPTIONS
+#include <exception>
+#endif
+
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -806,6 +810,11 @@ void FEngine::submitFrame() {
 }
 
 void FEngine::flush() {
+    if (UTILS_VERY_UNLIKELY(mCommandBufferQueue.hasUnrecoverableError())) {
+        return;
+    }
+    propagateBackendException();
+
     // flush the command buffer
     flushCommandBuffer(mCommandBufferQueue);
 
@@ -821,6 +830,11 @@ void FEngine::flushAndWait() {
 }
 
 bool FEngine::flushAndWait(uint64_t const timeout) {
+    if (UTILS_VERY_UNLIKELY(mCommandBufferQueue.hasUnrecoverableError())) {
+        return false;
+    }
+    mCommandBufferQueue.propagateBackendException();
+
     FILAMENT_CHECK_PRECONDITION(!mCommandBufferQueue.isPaused())
             << "Cannot call Engine::flushAndWait() when rendering thread is paused!";
 
@@ -941,8 +955,10 @@ int FEngine::loop() {
 }
 
 void FEngine::flushCommandBuffer(CommandBufferQueue& commandBufferQueue) const {
-    getDriver().purge();
-    commandBufferQueue.flush();
+    if (!commandBufferQueue.hasUnrecoverableError()) {
+        getDriver().purge();
+        commandBufferQueue.flush();
+    }
 }
 
 const FMaterial* FEngine::getSkyboxMaterial() const noexcept {
@@ -1581,14 +1597,32 @@ bool FEngine::execute() {
         return false;
     }
 
-    // execute all command buffers
-    auto& driver = getDriverApi();
-    for (auto& item : buffers) {
-        if (UTILS_LIKELY(item.begin)) {
-            driver.execute(item.begin);
+    if (UTILS_VERY_UNLIKELY(mCommandBufferQueue.hasUnrecoverableError())) {
+        for (auto& item : buffers) {
             mCommandBufferQueue.releaseBuffer(item);
         }
+        return true;
     }
+
+
+    // execute all command buffers
+    auto& driver = getDriverApi();
+#ifdef __EXCEPTIONS
+    try {
+#endif
+        for (auto& item : buffers) {
+            if (UTILS_LIKELY(item.begin)) {
+                driver.execute(item.begin);
+                mCommandBufferQueue.releaseBuffer(item);
+            }
+        }
+#ifdef __EXCEPTIONS
+    } catch (...) {
+        mCommandBufferQueue.setUnrecoverableException(std::current_exception());
+        mDriver->setUnrecoverableError();
+        FFence::setUnrecoverableError();
+    }
+#endif
 
     return true;
 }

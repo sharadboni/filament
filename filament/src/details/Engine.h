@@ -147,6 +147,14 @@ public:
     using Epoch = clock::time_point;
     using duration = clock::duration;
 
+#ifdef __EXCEPTIONS
+    void propagateBackendException() const {
+        mCommandBufferQueue.propagateBackendException();
+    }
+#else
+    void propagateBackendException() const noexcept {}
+#endif
+
 public:
     static Engine* create(Builder const& builder);
 

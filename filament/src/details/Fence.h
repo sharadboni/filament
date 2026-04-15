@@ -41,11 +41,15 @@ public:
 
     static FenceStatus waitAndDestroy(FFence* fence, Mode mode) noexcept;
 
+public:
+    static void setUnrecoverableError() noexcept;
+
 private:
     // We assume we don't have a lot of contention of fence and have all of them
     // share a single lock/condition
     static utils::Mutex sLock;
     static utils::Condition sCondition;
+    static bool sHasUnrecoverableError;
 
     struct FenceSignal {
         explicit FenceSignal() noexcept = default;

@@ -39,6 +39,7 @@ using namespace backend;
 
 utils::Mutex FFence::sLock;
 utils::Condition FFence::sCondition;
+bool FFence::sHasUnrecoverableError = false;
 
 static constexpr uint64_t PUMP_INTERVAL_MILLISECONDS = 1;
 
@@ -118,18 +119,28 @@ void FFence::FenceSignal::signal(State const s) noexcept {
     sCondition.notify_all();
 }
 
+void FFence::setUnrecoverableError() noexcept {
+    std::lock_guard const lock(sLock);
+    sHasUnrecoverableError = true;
+    sCondition.notify_all();
+}
+
 UTILS_NOINLINE
 Fence::FenceStatus FFence::FenceSignal::wait(uint64_t const timeout) noexcept {
     std::unique_lock lock(sLock);
-    while (mState == UNSIGNALED) {
+    while (mState == UNSIGNALED && !sHasUnrecoverableError) {
         if (timeout == FENCE_WAIT_FOR_EVER) {
             sCondition.wait(lock);
         } else {
             if (timeout == 0 ||
                     sCondition.wait_for(lock, ns(timeout)) == std::cv_status::timeout) {
+                if (sHasUnrecoverableError) break;
                 return FenceStatus::TIMEOUT_EXPIRED;
             }
         }
+    }
+    if (UTILS_VERY_UNLIKELY(sHasUnrecoverableError)) {
+        return FenceStatus::ERROR;
     }
     if (mState == DESTROYED) {
         return FenceStatus::ERROR;
