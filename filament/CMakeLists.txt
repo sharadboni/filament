@@ -324,6 +324,12 @@ set(MATERIAL_MULTIVIEW_SRCS
         src/materials/skybox.mat
 )
 
+# This set of materials should only be compiled for vulkan or metal because they contain operations
+# not allowed on other platforms. (e.g. sampling from a multi-sampled texture).
+set(MATERIAL_VULKAN_METAL_SRCS
+        src/materials/resolveDepth.mat
+)
+
 # ==================================================================================================
 # Configuration
 # ==================================================================================================
@@ -419,13 +425,34 @@ foreach(mat_dir ${MATERIAL_DIRS})
 
         # --- Base material ---
         set(output_path "${MATERIAL_DIR}/${localname}.filamat")
-        add_custom_command(
-                OUTPUT ${output_path}
-                COMMAND matc ${MATC_BASE_FLAGS} -o ${output_path} ${fullname}
-                MAIN_DEPENDENCY ${fullname}
-                DEPENDS matc
-                COMMENT "Compiling material ${fullname}"
-        )
+
+        list(FIND MATERIAL_VULKAN_METAL_SRCS ${mat_src} index_vk_metal)
+        if (${index_vk_metal} GREATER -1)
+            set(MATC_CUSTOM_FLAGS "${MATC_BASE_FLAGS}")
+            # Remove webgpu and related parameters
+            string(REPLACE "-a;webgpu;--variant-filter=stereo" "" MATC_CUSTOM_FLAGS "${MATC_CUSTOM_FLAGS}")
+
+            # Remove any empty args
+            string(REPLACE ";;" ";" MATC_CUSTOM_FLAGS "${MATC_CUSTOM_FLAGS}")
+            string(REGEX REPLACE "^;|;$" "" MATC_CUSTOM_FLAGS "${MATC_CUSTOM_FLAGS}")
+
+            add_custom_command(
+                    OUTPUT ${output_path}
+                    COMMAND matc ${MATC_CUSTOM_FLAGS} -o ${output_path} ${fullname}
+                    MAIN_DEPENDENCY ${fullname}
+                    DEPENDS matc
+                    COMMENT "Compiling material ${fullname} (Vulkan/Metal)"
+            )
+        else()
+            add_custom_command(
+                    OUTPUT ${output_path}
+                    COMMAND matc ${MATC_BASE_FLAGS} -o ${output_path} ${fullname}
+                    MAIN_DEPENDENCY ${fullname}
+                    DEPENDS matc
+                    COMMENT "Compiling material ${fullname}"
+            )
+        endif()
+
         list(APPEND FILAMAT_FILES_FOR_GROUP ${output_path})
         list(APPEND FILAMAT_TARGETS_FOR_GROUP ${output_path})
 
